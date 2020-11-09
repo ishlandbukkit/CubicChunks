@@ -23,29 +23,47 @@ import net.minecraft.world.level.LightLayer;
 import net.minecraft.world.level.biome.BiomeSource;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.chunk.*;
-import net.minecraft.world.level.levelgen.GenerationStep;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructureManager;
 import net.minecraft.world.level.lighting.LevelLightEngine;
 import org.apache.logging.log4j.LogManager;
 
 import javax.annotation.Nullable;
 import java.io.*;
+import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.BitSet;
 import java.util.Objects;
-import java.util.zip.GZIPInputStream;
 
-public class CubeSerializer {
+import static net.minecraft.nbt.NbtIo.readCompressed;
+import static net.minecraft.nbt.NbtIo.writeCompressed;
+
+public class CubeSerializer implements ICubeSerializer {
+
+    @Override
+    public IBigCube read(ServerLevel level, StructureManager templateManager, PoiManager poiManager, CubePos cubePos, ByteBuffer cubeBuffer) throws IOException {
+        CompoundTag root = readCompressed(new ByteArrayInputStream(cubeBuffer.array()));
+        if(root != null) {
+            boolean flag = root.contains("Level", 10) && root.getCompound("Level").contains("Status", 8);
+            if (flag) {
+                return CubeSerializer.read(level, templateManager, poiManager, cubePos, root);
+            }
+        }
+        return null;
+    }
+
+    @Override
+    public ByteBuffer write(ServerLevel level, IBigCube cube, CompoundTag cubeNBT) throws IOException {
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        writeCompressed(cubeNBT, outputStream);
+        return ByteBuffer.wrap(outputStream.toByteArray());
+    }
+
+    @Override
+    public ChunkStatus.ChunkType getChunkTypeFromBuffer(ByteBuffer cubeBuffer) throws IOException {
+        return CubeSerializer.getChunkStatus(readCompressed(new ByteArrayInputStream(cubeBuffer.array())));
+    }
 
     public static IBigCube read(ServerLevel worldIn, StructureManager structureManager, PoiManager poiManager, CubePos expectedCubePos, CompoundTag root) {
-//        Path cubePath = worldDir.resolve("cubes32/" + cubePos.getX() + "_" + cubePos.getY() + "_" + cubePos.getZ() + ".bin");
-//        if (!Files.exists(cubePath)) {
-//            return null;
-//        }
-//        InputStream input = new FileInputStream(cubePath.toString());
-//        DataInputStream datainputstream = new DataInputStream(input);
-//
         IBigCube cube = null;
         CompoundTag level = root.getCompound("Level");
 
@@ -511,6 +529,7 @@ public class CubeSerializer {
 
         return ListTag;
     }
+
     public static ChunkStatus.ChunkType getChunkStatus(@Nullable CompoundTag chunkNBT) {
         if (chunkNBT != null) {
             ChunkStatus chunkstatus = ChunkStatus.byName(chunkNBT.getCompound("Level").getString("Status"));

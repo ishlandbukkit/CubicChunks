@@ -8,8 +8,6 @@ import cubicchunks.regionlib.impl.SaveCubeColumns;
 import io.github.opencubicchunks.cubicchunks.CubicChunks;
 import io.github.opencubicchunks.cubicchunks.chunk.util.CubePos;
 import net.minecraft.Util;
-import net.minecraft.nbt.CompoundTag;
-import net.minecraft.nbt.NbtIo;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.thread.ProcessorMailbox;
 import net.minecraft.util.thread.StrictQueue;
@@ -19,8 +17,6 @@ import org.apache.logging.log4j.Logger;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -32,8 +28,6 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.function.Supplier;
-
-import static net.minecraft.nbt.NbtIo.writeCompressed;
 
 public class RegionCubeIO {
 
@@ -89,16 +83,16 @@ public class RegionCubeIO {
     }
 
 
-    public CompletableFuture<Void> saveCubeNBT(CubePos cubePos, CompoundTag cubeNBT) {
+    public CompletableFuture<Void> saveCube(CubePos cubePos, ByteBuffer cubeBuffer) {
         return this.submitCubeTask(() -> {
-            SaveEntry entry = this.pendingCubeWrites.computeIfAbsent(cubePos, (p_235977_1_) -> new SaveEntry(cubeNBT));
-            entry.data = cubeNBT;
+            SaveEntry entry = this.pendingCubeWrites.computeIfAbsent(cubePos, (pos) -> new SaveEntry(cubeBuffer));
+            entry.data = cubeBuffer;
             return Either.left(entry.result);
         }).thenCompose(Function.identity());
     }
 
-    @Nullable public CompoundTag loadCubeNBT(CubePos cubePos) throws IOException {
-        CompletableFuture<CompoundTag> cubeReadFuture = this.submitCubeTask(() -> {
+    @Nullable public ByteBuffer loadCube(CubePos cubePos) throws IOException {
+        CompletableFuture<ByteBuffer> cubeReadFuture = (CompletableFuture<ByteBuffer>) this.submitCubeTask(() -> {
             SaveEntry entry = this.pendingCubeWrites.get(cubePos);
 
             if (entry != null) {
@@ -108,11 +102,7 @@ public class RegionCubeIO {
                     SaveCubeColumns save = saveCubeColumns;
 
                     Optional<ByteBuffer> buf = save.load(new EntryLocation3D(cubePos.getX(), cubePos.getY(), cubePos.getZ()), true);
-                    if(!buf.isPresent())
-                        return Either.left(null);
-
-                    CompoundTag compoundnbt = NbtIo.readCompressed(new ByteArrayInputStream(buf.get().array()));
-                    return Either.left(compoundnbt);
+                    return buf.<Either<ByteBuffer, Exception>>map(Either::left).orElseGet(() -> Either.left(null));
                 } catch (Exception exception) {
                     LOGGER.warn("Failed to read cube {}", cubePos, exception);
                     return Either.right(exception);
@@ -131,16 +121,16 @@ public class RegionCubeIO {
         }
     }
 
-    public CompletableFuture<Void> saveChunkNBT(ChunkPos chunkPos, CompoundTag cubeNBT) {
+    public CompletableFuture<Void> saveChunk(ChunkPos chunkPos, ByteBuffer cubeBuffer) {
         return this.submitChunkTask(() -> {
-            SaveEntry entry = this.pendingChunkWrites.computeIfAbsent(chunkPos, (pos) -> new SaveEntry(cubeNBT));
-            entry.data = cubeNBT;
+            SaveEntry entry = this.pendingChunkWrites.computeIfAbsent(chunkPos, (pos) -> new SaveEntry(cubeBuffer));
+            entry.data = cubeBuffer;
             return Either.left(entry.result);
         }).thenCompose(Function.identity());
     }
 
-    @Nullable public CompoundTag loadChunkNBT(ChunkPos chunkPos) throws IOException {
-        CompletableFuture<CompoundTag> cubeReadFuture = this.submitChunkTask(() -> {
+    @Nullable public ByteBuffer loadChunk(ChunkPos chunkPos) throws IOException {
+        CompletableFuture<ByteBuffer> cubeReadFuture = this.submitChunkTask(() -> {
             SaveEntry entry = this.pendingChunkWrites.get(chunkPos);
 
             if (entry != null) {
@@ -150,11 +140,7 @@ public class RegionCubeIO {
                     SaveCubeColumns save = saveCubeColumns;
 
                     Optional<ByteBuffer> buf = save.load(new EntryLocation2D(chunkPos.x, chunkPos.z), true);
-                    if(!buf.isPresent())
-                        return Either.left(null);
-
-                    CompoundTag compoundnbt = NbtIo.readCompressed(new ByteArrayInputStream(buf.get().array()));
-                    return Either.left(compoundnbt);
+                    return buf.<Either<ByteBuffer, Exception>>map(Either::left).orElseGet(() -> Either.left(null));
                 } catch (Exception exception) {
                     LOGGER.warn("Failed to read cube {}", chunkPos, exception);
                     return Either.right(exception);
@@ -177,11 +163,7 @@ public class RegionCubeIO {
         try {
             SaveCubeColumns save = saveCubeColumns;
 
-            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-            writeCompressed(entry.data, outputStream);
-            ByteBuffer buf = ByteBuffer.wrap(outputStream.toByteArray());
-
-            save.save3d(new EntryLocation3D(cubePos.getX(), cubePos.getY(), cubePos.getZ()), buf);
+            save.save3d(new EntryLocation3D(cubePos.getX(), cubePos.getY(), cubePos.getZ()), entry.data);
 
             entry.result.complete(null);
         } catch (IOException e) {
@@ -194,11 +176,7 @@ public class RegionCubeIO {
         try {
             SaveCubeColumns save = saveCubeColumns;
 
-            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-            writeCompressed(entry.data, outputStream);
-            ByteBuffer buf = ByteBuffer.wrap(outputStream.toByteArray());
-
-            save.save2d(new EntryLocation2D(chunkPos.x, chunkPos.z), buf);
+            save.save2d(new EntryLocation2D(chunkPos.x, chunkPos.z), entry.data);
 
             entry.result.complete(null);
         } catch (IOException e) {
@@ -246,11 +224,11 @@ public class RegionCubeIO {
     }
 
     static class SaveEntry {
-        private CompoundTag data;
+        private ByteBuffer data;
         private final CompletableFuture<Void> result = new CompletableFuture<>();
 
-        public SaveEntry(CompoundTag p_i231891_1_) {
-            this.data = p_i231891_1_;
+        public SaveEntry(ByteBuffer buffer) {
+            this.data = buffer;
         }
     }
 
