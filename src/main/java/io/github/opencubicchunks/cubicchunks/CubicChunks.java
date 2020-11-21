@@ -20,6 +20,8 @@ public class CubicChunks implements ModInitializer {
     // TODO: debug and fix optimized cubeload
     public static final boolean OPTIMIZED_CUBELOAD = false;
 
+    public static final boolean NULLED_CHUNKGEN = true;
+
     public static long SECTIONPOS_SENTINEL = -1;
 
     public static int MAX_SUPPORTED_HEIGHT = Integer.MAX_VALUE / 2;

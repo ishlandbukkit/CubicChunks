@@ -26,7 +26,7 @@ import net.minecraft.server.level.TicketType;
 import net.minecraft.util.profiling.ProfilerFiller;
 import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.NaturalSpawner;
-import net.minecraft.world.level.chunk.ChunkStatus;
+import net.minecraft.world.level.chunk.*;
 import net.minecraft.world.level.storage.LevelData;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
@@ -34,6 +34,7 @@ import org.spongepowered.asm.mixin.Overwrite;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 import org.spongepowered.asm.mixin.injection.callback.LocalCapture;
@@ -43,6 +44,8 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
+
+import static net.minecraft.core.Registry.BIOME_REGISTRY;
 
 @Mixin(ServerChunkCache.class)
 public abstract class MixinServerChunkProvider implements IServerChunkProvider, ICubeLightProvider {
@@ -57,6 +60,7 @@ public abstract class MixinServerChunkProvider implements IServerChunkProvider, 
     @Shadow public abstract int getLoadedChunksCount();
 
     @Shadow @Final private static List<ChunkStatus> CHUNK_STATUSES;
+    @Shadow @Final private ChunkGenerator generator;
     private final long[] recentCubePositions = new long[4];
     private final ChunkStatus[] recentCubeStatuses = new ChunkStatus[4];
     private final IBigCube[] recentCubes = new IBigCube[4];
@@ -180,6 +184,17 @@ public abstract class MixinServerChunkProvider implements IServerChunkProvider, 
 
         return this.chunkAbsent(chunkholder, j) ? ICubeHolder.MISSING_CUBE_FUTURE : ((ICubeHolder)chunkholder).getOrScheduleCubeFuture(requiredStatus,
                 this.chunkMap);
+    }
+
+    @Redirect(method = "getChunkFutureMainThread", at = @At(value = "INVOKE", target = "Lnet/minecraft/server/level/ChunkHolder;getOrScheduleFuture(Lnet/minecraft/world/level/chunk/ChunkStatus;Lnet/minecraft/server/level/ChunkMap;)Ljava/util/concurrent/CompletableFuture;"))
+    private CompletableFuture<Either<ChunkAccess, ChunkHolder.ChunkLoadingFailure>> skipChunkGeneration(ChunkHolder chunkHolder, ChunkStatus chunkStatus, ChunkMap chunkMap) {
+        if(CubicChunks.NULLED_CHUNKGEN) {
+            CompletableFuture<Either<ChunkAccess, ChunkHolder.ChunkLoadingFailure>> levelChunkFuture = new CompletableFuture<>();
+            levelChunkFuture.complete(Either.left(new LevelChunk(level, chunkHolder.getPos(), new ChunkBiomeContainer(level.registryAccess().registryOrThrow(BIOME_REGISTRY), chunkHolder.getPos(), this.generator.getBiomeSource()))));
+            return levelChunkFuture;
+        } else { //vanilla code
+            return chunkHolder.getOrScheduleFuture(chunkStatus, this.chunkMap);
+        }
     }
 
     // func_217213_a, getVisibleChunkIfPresent

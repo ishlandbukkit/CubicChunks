@@ -73,10 +73,7 @@ import net.minecraft.world.level.storage.LevelStorageSource;
 import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.Collections;
-import java.util.List;
-import java.util.Optional;
-import java.util.Queue;
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.Executor;
@@ -89,6 +86,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static io.github.opencubicchunks.cubicchunks.CubicChunks.LOGGER;
+import static net.minecraft.core.Registry.BIOME_REGISTRY;
 
 @Mixin(ChunkMap.class)
 public abstract class MixinChunkManager implements IChunkManager {
@@ -148,6 +146,8 @@ public abstract class MixinChunkManager implements IChunkManager {
     @Shadow private static int checkerboardDistance(ChunkPos chunkPosIn, int x, int y) {
         throw new Error("Mixin didn't apply");
     }
+
+    @Shadow @org.jetbrains.annotations.Nullable protected abstract ChunkHolder getUpdatingChunkIfPresent(long l);
 
     @Inject(method = "<init>", at = @At("RETURN"), locals = LocalCapture.CAPTURE_FAILHARD)
     private void onConstruct(ServerLevel worldIn,
@@ -532,6 +532,64 @@ public abstract class MixinChunkManager implements IChunkManager {
         }, (runnable) -> {
             this.cubeWorldgenMailbox.tell(CubeTaskPriorityQueueSorter.createMsg(chunkHolderIn, runnable));
         });
+    }
+
+    @Inject(method = "getChunkRangeFuture", at = @At("HEAD"), cancellable = true)
+    private void getChunkRangeFuture(ChunkPos chunkPos, int i, IntFunction<ChunkStatus> intFunction, CallbackInfoReturnable<CompletableFuture<Either<List<ChunkAccess>, ChunkHolder.ChunkLoadingFailure>>> cir) {
+        if(!CubicChunks.NULLED_CHUNKGEN)
+            return;
+
+        int x = chunkPos.x;
+        int z = chunkPos.z;
+
+        List<CompletableFuture<Either<ChunkAccess, ChunkHolder.ChunkLoadingFailure>>> list = Lists.newArrayList();
+        for(int l = -i; l <= i; ++l) {
+            for(int m = -i; m <= i; ++m) {
+                ChunkPos pos = new ChunkPos(x + m, z + l);
+                long posAsLong = pos.toLong();
+                ChunkHolder chunkHolder = this.getUpdatingChunkIfPresent(posAsLong);
+                if (chunkHolder == null) {
+                    cir.setReturnValue(CompletableFuture.completedFuture(Either.right(ChunkHolder.ChunkLoadingFailure.UNLOADED)));
+                    return;
+                }
+                int n = Math.max(Math.abs(m), Math.abs(l));
+
+                CompletableFuture<Either<ChunkAccess, ChunkHolder.ChunkLoadingFailure>> futureIfPresent = chunkHolder.getFutureIfPresent(ChunkStatus.EMPTY);
+                Either<ChunkAccess, ChunkHolder.ChunkLoadingFailure> future = futureIfPresent.getNow(null);
+                if(future != null) {
+                    if (future.left().isPresent()) {
+                        if (future.left().get() instanceof LevelChunk) {
+                            CompletableFuture<Either<ChunkAccess, ChunkHolder.ChunkLoadingFailure>> completableFuture = new CompletableFuture<>();
+                            completableFuture.complete(Either.left(future.left().get()));
+                            list.add(completableFuture);
+                            continue;
+                        } else {
+                            LOGGER.error("ChunkHolder contained ProtoChunk!");
+                        }
+                    }
+                }
+
+                ChunkStatus chunkStatus = intFunction.apply(n);
+                if(chunkStatus.isOrAfter(ChunkStatus.FULL)) {
+                    CompletableFuture<Either<ChunkAccess, ChunkHolder.ChunkLoadingFailure>> completableFuture = new CompletableFuture<>();
+                    completableFuture.complete(Either.left(new LevelChunk(level, chunkPos, new ChunkBiomeContainer(level.registryAccess().registryOrThrow(BIOME_REGISTRY), chunkPos, level.getChunkSource().getGenerator().getBiomeSource()))));
+                    progressListener.onStatusChange(chunkPos, ChunkStatus.FULL);
+                    list.add(completableFuture);
+                }
+            }
+        }
+
+        CompletableFuture<List<Either<ChunkAccess, ChunkHolder.ChunkLoadingFailure>>> completableFuture2 = Util.sequence(list);
+        cir.setReturnValue(completableFuture2.thenApply((listx) -> {
+            List<ChunkAccess> list2 = Lists.newArrayList();
+
+            for (Either<ChunkAccess, ChunkHolder.ChunkLoadingFailure> either : listx) {
+                //noinspection OptionalGetWithoutIsPresent
+                list2.add(either.left().get()); //Must be present as it's always added above
+            }
+
+            return Either.left(list2);
+        }));
     }
 
     // func_219236_a, getChunkRangeFuture
