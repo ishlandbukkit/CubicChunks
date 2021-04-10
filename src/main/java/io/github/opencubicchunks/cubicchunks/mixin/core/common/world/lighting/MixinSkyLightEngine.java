@@ -41,10 +41,9 @@ public abstract class MixinSkyLightEngine extends MixinLightEngine<SkyLightSecti
     }
 
     /** all parameters are global coordinates */
-    @Override public void checkSkyLightColumn(LevelChunk chunk, int x, int z, int oldHeight, int newHeight) {
+    @Override public void checkSkyLightColumn(CubeMapGetter chunk, int x, int z, int oldHeight, int newHeight) {
         ((SectionLightStorageAccess) this.storage).invokeRunAllUpdates();
-        // TODO pass CubeMap into method instead?
-        CubeMap cubeMap = ((CubeMapGetter) chunk).getCubeMap();
+        CubeMap cubeMap = chunk.getCubeMap();
         int oldHeightCube = Coords.blockToCube(oldHeight-1);
         int newHeightCube = Coords.blockToCube(newHeight);
         if (oldHeight > newHeight) {

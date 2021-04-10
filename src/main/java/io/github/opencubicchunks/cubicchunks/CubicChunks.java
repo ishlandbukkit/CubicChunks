@@ -12,6 +12,7 @@ import io.github.opencubicchunks.cubicchunks.world.biome.StripedBiomeSource;
 import io.github.opencubicchunks.cubicchunks.world.gen.feature.CCFeatures;
 import io.github.opencubicchunks.cubicchunks.world.gen.placement.CCPlacement;
 import net.fabricmc.api.ModInitializer;
+import net.minecraft.SharedConstants;
 import net.minecraft.Util;
 import net.minecraft.core.Registry;
 import net.minecraft.resources.ResourceLocation;
@@ -48,6 +49,7 @@ public class CubicChunks implements ModInitializer {
     private static final Config CONFIG = new Config();
 
     public CubicChunks() {
+        SharedConstants.IS_RUNNING_IN_IDE = true;
         if (!(IChunkManager.class.isAssignableFrom(ChunkMap.class))) {
             throw new IllegalStateException("Mixin not applied!");
         }

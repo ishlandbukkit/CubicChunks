@@ -2,6 +2,7 @@ package io.github.opencubicchunks.cubicchunks.mixin.core.common.world.lighting;
 
 import javax.annotation.Nullable;
 
+import io.github.opencubicchunks.cubicchunks.chunk.CubeMapGetter;
 import io.github.opencubicchunks.cubicchunks.chunk.IBigCube;
 import io.github.opencubicchunks.cubicchunks.chunk.util.CubePos;
 import io.github.opencubicchunks.cubicchunks.world.lighting.ICubicSkyLightEngine;
@@ -73,7 +74,7 @@ public abstract class MixinLevelLightEngine implements IWorldLightManager, Light
     }
 
     @Override
-    public void checkSkyLightColumn(LevelChunk chunk, int x, int z, int oldHeight, int newHeight) {
+    public void checkSkyLightColumn(CubeMapGetter chunk, int x, int z, int oldHeight, int newHeight) {
         if (this.skyEngine != null) {
             ((ISkyLightColumnChecker) skyEngine).checkSkyLightColumn(chunk, x, z, oldHeight, newHeight);
         }
