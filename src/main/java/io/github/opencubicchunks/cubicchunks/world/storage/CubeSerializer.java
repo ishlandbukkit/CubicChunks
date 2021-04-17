@@ -136,7 +136,7 @@ public class CubeSerializer {
             icube = new BigCube(world.getLevel(), cubePos, cubeBiomeContainer, null, blockTickList, fluidTickList, inhabitedTime, sections, (cube) -> {
                 readEntities(world, level, cube);
             });
-            //TODO: reimplement forge capabilities in save format
+            //FORGE: Reimplement forge capabilities in save format
 //                if (level.contains("ForgeCaps")) ((LevelChunk)icube).readCapsFromNBT(level.getCompound("ForgeCaps"));
         } else {
             //TODO: updatedata
@@ -192,7 +192,7 @@ public class CubeSerializer {
         }
 
         if (chunkType == ChunkStatus.ChunkType.LEVELCHUNK) {
-            //TODO: reimplement forge chunk load event
+            //FORGE: Reimplement forge chunk load event
 //                net.minecraftforge.common.MinecraftForge.EVENT_BUS.post(new net.minecraftforge.event.world.ChunkDataEvent.Load(icube, level, chunkstatus$type));
             return new CubePrimerWrapper((BigCube) icube, world);
         } else {
@@ -226,7 +226,7 @@ public class CubeSerializer {
                 cubePrimer.setCarvingMask(carvingStage, BitSet.valueOf(compoundnbt5.getByteArray(key)));
             }
 
-            //TODO: reimplement forge ChunkDataEvent
+            //FORGE: Reimplement forge ChunkDataEvent
 //                net.minecraftforge.common.MinecraftForge.EVENT_BUS.post(new net.minecraftforge.event.world.ChunkDataEvent.Load(icube, level, chunkstatus$type));
 
             return cubePrimer;

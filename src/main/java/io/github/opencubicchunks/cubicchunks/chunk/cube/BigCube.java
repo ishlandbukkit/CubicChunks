@@ -45,7 +45,6 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ChunkHolder;
 import net.minecraft.server.level.ServerLevel;
-import net.minecraft.util.ClassInstanceMultiMap;
 import net.minecraft.util.profiling.ProfilerFiller;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
@@ -106,7 +105,6 @@ public class BigCube implements ChunkAccess, IBigCube, CubicLevelHeightAccessor 
 
     private final HashMap<BlockPos, BlockEntity> blockEntities = new HashMap<>();
     private final Map<BlockPos, RebindableTickingBlockEntityWrapper> tickersInLevel = new HashMap<>();
-    private final ClassInstanceMultiMap<Entity>[] entityLists;
     private final Level level;
 
     private final Map<StructureFeature<?>, StructureStart<?>> structureStarts;
@@ -116,7 +114,7 @@ public class BigCube implements ChunkAccess, IBigCube, CubicLevelHeightAccessor 
 
     private ChunkBiomeContainer cubeBiomeContainer;
 
-    private boolean dirty = true; // todo: change back to false?
+    private boolean dirty = true; // todo: change back to false? Why do we need this?
     private boolean loaded = false;
 
     private volatile boolean lightCorrect;
@@ -152,13 +150,6 @@ public class BigCube implements ChunkAccess, IBigCube, CubicLevelHeightAccessor 
 
         this.structureStarts = Maps.newHashMap();
         this.structuresRefences = Maps.newHashMap();
-
-        //noinspection unchecked
-        this.entityLists = new ClassInstanceMultiMap[IBigCube.SECTION_COUNT];
-        for (int i = 0; i < this.entityLists.length; ++i) {
-            this.entityLists[i] = new ClassInstanceMultiMap<>(Entity.class);
-        }
-
         this.cubeBiomeContainer = biomeContainerIn;
 //        this.blockBiomeArray = biomeContainerIn;
 //        this.blocksToBeTicked = tickBlocksIn;
@@ -194,10 +185,7 @@ public class BigCube implements ChunkAccess, IBigCube, CubicLevelHeightAccessor 
     }
 
     public BigCube(Level worldIn, CubePrimer cubePrimer, @Nullable Consumer<BigCube> postLoadConsumerIn) {
-        //TODO: reimplement full BigCube constructor from CubePrimer
-//        this(worldIn, cubePrimer.getCubePos(), cubePrimer.getCubeBiomes(), cubePrimer.getUpgradeData(), cubePrimer.getBlocksToBeTicked(),
-//            cubePrimer.getFluidsToBeTicked(), cubePrimer.getInhabitedTime(), cubePrimer.getSections(), (Consumer<BigCube>)null);
-        this(worldIn, cubePrimer.getCubePos(), cubePrimer.getBiomes(), null, cubePrimer.getBlockTicks(),
+        this(worldIn, cubePrimer.getCubePos(), cubePrimer.getBiomes(), cubePrimer.getUpgradeData(), cubePrimer.getBlockTicks(),
             cubePrimer.getLiquidTicks(), cubePrimer.getCubeInhabitedTime(), cubePrimer.getCubeSections(), postLoadConsumerIn);
 
         for (CompoundTag compoundnbt : cubePrimer.getCubeEntities()) {
@@ -335,35 +323,6 @@ public class BigCube implements ChunkAccess, IBigCube, CubicLevelHeightAccessor 
     //ENTITY
     @Deprecated @Override public void addEntity(Entity entityIn) {
         // empty in vanilla too
-    }
-
-    public ClassInstanceMultiMap<Entity>[] getCubeEntityLists() {
-        return entityLists;
-    }
-
-    public ClassInstanceMultiMap<Entity>[] getEntityLists() {
-        return this.getCubeEntityLists();
-    }
-
-    private int getIndexFromEntity(Entity entityIn) {
-        return blockToIndex((int) entityIn.getX(), (int) entityIn.getY(), (int) entityIn.getZ());
-    }
-
-    public void removeEntity(Entity entityIn) {
-        this.removeEntityAtIndex(entityIn, this.getIndexFromEntity(entityIn));
-    }
-
-    public void removeEntityAtIndex(Entity entityIn, int index) {
-        if (index < 0) {
-            index = 0;
-        }
-
-        if (index >= this.entityLists.length) {
-            index = this.entityLists.length - 1;
-        }
-
-        this.entityLists[index].remove(entityIn);
-        this.setDirty(true);
     }
 
     //TILEENTITY
@@ -724,13 +683,26 @@ public class BigCube implements ChunkAccess, IBigCube, CubicLevelHeightAccessor 
         readBuffer.readBytes(emptyFlagsBytes);
         BitSet emptyFlags = BitSet.valueOf(emptyFlagsBytes);
 
-        if (biomesIn != null) {
+        boolean fullUpdate = biomesIn != null;
+        if (fullUpdate) {
             this.cubeBiomeContainer = biomesIn;
         }
 
-        // TODO: support partial updates
-        this.blockEntities.values().forEach(this::onBlockEntityRemove);
-        this.blockEntities.clear();
+        // TODO: Support partial updates
+        if (fullUpdate) {
+            this.blockEntities.values().forEach(this::onBlockEntityRemove);
+            this.blockEntities.clear();
+        } else {
+            this.blockEntities.values().removeIf((blockEntity) -> {
+                int i = this.getSectionIndex(blockEntity.getBlockPos().getY());
+                if (emptyFlags.get(i)) {
+                    blockEntity.setRemoved();
+                    return true;
+                } else {
+                    return false;
+                }
+            });
+        }
 
         for (int i = 0; i < IBigCube.SECTION_COUNT; i++) {
             boolean exists = emptyFlags.get(i);
@@ -1091,9 +1063,8 @@ public class BigCube implements ChunkAccess, IBigCube, CubicLevelHeightAccessor 
                             this.loggedInvalidBlockState = false;
                         } else if (!this.loggedInvalidBlockState) {
                             this.loggedInvalidBlockState = true;
-                            BigCube.LOGGER.warn("Block entity {} @ {} state {} invalid for ticking:", new org.apache.logging.log4j.util.Supplier[] { this::getType, this::getPos, () -> {
-                                return blockState;
-                            } });
+                            BigCube.LOGGER
+                                .warn("Block entity {} @ {} state {} invalid for ticking:", new org.apache.logging.log4j.util.Supplier[] { this::getType, this::getPos, () -> blockState });
                         }
 
                         profilerFiller.pop();

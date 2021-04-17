@@ -15,7 +15,9 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nullable;
 
+import io.github.opencubicchunks.cubicchunks.chunk.CubeWorldRegionColumn;
 import io.github.opencubicchunks.cubicchunks.chunk.IBigCube;
+import io.github.opencubicchunks.cubicchunks.chunk.cube.BigCube;
 import io.github.opencubicchunks.cubicchunks.chunk.util.CubePos;
 import io.github.opencubicchunks.cubicchunks.server.ICubicWorld;
 import io.github.opencubicchunks.cubicchunks.utils.Coords;
@@ -301,7 +303,7 @@ public class CubeWorldGenRegion extends WorldGenRegion implements ICubicWorld {
         if (tileentity != null) {
             return tileentity;
         } else {
-            CompoundTag compoundnbt = null; // = icube.getDeferredTileEntity(pos);
+            CompoundTag compoundnbt = icube.getBlockEntityNbt(pos);
             BlockState state = this.getBlockState(pos);
             if (compoundnbt != null) {
                 if ("DUMMY".equals(compoundnbt.getString("id"))) {
@@ -314,14 +316,14 @@ public class CubeWorldGenRegion extends WorldGenRegion implements ICubicWorld {
                 }
 
                 if (tileentity != null) {
-                    icube.setCubeBlockEntity(tileentity);
+                    icube.setBlockEntity(tileentity);
                     return tileentity;
                 }
             }
 
-            //if (icube.getBlockState(pos).hasBlockEntity()) {
-            //    LOGGER.warn("Tried to access a block entity before it was created. {}", (Object) pos); //TODO:Re-enable warning
-            //}
+            if (icube.getBlockState(pos).hasBlockEntity()) {
+                LOGGER.warn("Tried to access a block entity before it was created. {}", pos);
+            }
 
             return null;
         }
@@ -340,27 +342,13 @@ public class CubeWorldGenRegion extends WorldGenRegion implements ICubicWorld {
         return this.getCube(pos).getFluidState(pos);
     }
 
-    @Override public List<Entity> getEntities(@Nullable Entity entityIn, AABB boundingBox,
-                                              @Nullable Predicate<? super Entity> predicate) {
-        return Collections.emptyList();
-    }
-
-    @Override public <T extends Entity> List<T> getEntities(EntityTypeTest<Entity, T> entityTypeTest, AABB aABB, Predicate<? super T> predicate) {
-        return Collections.emptyList();
-    }
-
-    @Override
-    public <T extends Entity> List<T> getEntitiesOfClass(Class<T> clazz, AABB aabb, @Nullable Predicate<? super T> filter) {
-        return Collections.emptyList();
-    }
-
     @Override public List<Player> players() {
         return /*level.players()*/ Collections.emptyList();
     }
 
     @Deprecated
     @Nullable @Override public ChunkAccess getChunk(int x, int z, ChunkStatus requiredStatus, boolean nonnull) {
-        return this.access; //TODO: Do not do this.
+        return new CubeWorldRegionColumn(new ChunkPos(x, z), this.access.getUpgradeData(), this);
     }
 
     @Override public int getHeight(Heightmap.Types heightmapType, int x, int z) {
@@ -423,7 +411,8 @@ public class CubeWorldGenRegion extends WorldGenRegion implements ICubicWorld {
     //TODO: Cube Biome Storage
     @Override
     public Biome getNoiseBiome(int x, int y, int z) {
-        return getUncachedNoiseBiome(x, y, z);
+        IBigCube cube = this.getCube(Coords.blockToCube(x), Coords.blockToCube(y), Coords.blockToCube(z), ChunkStatus.BIOMES, false);
+        return cube != null && cube.getBiomes() != null ? cube.getBiomes().getNoiseBiome(x, y, z) : this.getUncachedNoiseBiome(x, y, z);
     }
 
     @Override public boolean isClientSide() {
@@ -455,23 +444,27 @@ public class CubeWorldGenRegion extends WorldGenRegion implements ICubicWorld {
         }
         if (newState.hasBlockEntity()) {
             if (icube.getCubeStatus().getChunkType() == ChunkStatus.ChunkType.LEVELCHUNK) {
-                icube.setCubeBlockEntity(((EntityBlock) newState.getBlock()).newBlockEntity(pos, newState));
+                BlockEntity tileEntity = ((EntityBlock) newState.getBlock()).newBlockEntity(pos, newState);
+                if (tileEntity != null) {
+                    icube.setBlockEntity(tileEntity);
+                } else {
+                    icube.removeBlockEntity(pos);
+                }
             } else {
                 CompoundTag compoundnbt = new CompoundTag();
                 compoundnbt.putInt("x", pos.getX());
                 compoundnbt.putInt("y", pos.getY());
                 compoundnbt.putInt("z", pos.getZ());
                 compoundnbt.putString("id", "DUMMY");
-                //icube.addTileEntity(compoundnbt);
+                icube.setBlockEntityNbt(compoundnbt);
             }
         } else if (blockstate != null && blockstate.hasBlockEntity()) {
             icube.removeCubeBlockEntity(pos);
         }
 
-        //if (newState.hasPostProcess(this, pos)) {
-        //TODO: reimplement postprocessing
-        //this.markBlockForPostprocessing(pos);
-        //}
+        if (newState.hasPostProcess(this, pos)) {
+            this.markPosForPostprocessing(pos);
+        }
 
         return true;
     }
@@ -499,24 +492,16 @@ public class CubeWorldGenRegion extends WorldGenRegion implements ICubicWorld {
         return blockstate.test(this.getBlockState(pos));
     }
 
-    //TODO: DOUBLE CHECK THESE
-
-    @Override
-    public RegistryAccess registryAccess() {
-        return this.getLevel().registryAccess();
-    }
-
-    @Override
-    public Stream<? extends StructureStart<?>> startsForFeature(SectionPos sectionPos, StructureFeature<?> structure) {
-        return this.getLevel().startsForFeature(sectionPos, structure);
-    }
-
     @Override public int getMinBuildHeight() {
         return getLevel().getMinBuildHeight();
     }
 
     @Override public int getHeight() {
         return getLevel().getHeight();
+    }
+
+    private void markPosForPostprocessing(BlockPos pos) {
+        this.getCube(pos).markPosForPostprocessing(pos);
     }
 
     public boolean insideCubeHeight(int blockY) {

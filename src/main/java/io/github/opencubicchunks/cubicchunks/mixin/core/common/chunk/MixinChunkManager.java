@@ -31,6 +31,7 @@ import com.mojang.datafixers.DataFixer;
 import com.mojang.datafixers.util.Either;
 import io.github.opencubicchunks.cubicchunks.CubicChunks;
 import io.github.opencubicchunks.cubicchunks.chunk.CubeCollectorFuture;
+import io.github.opencubicchunks.cubicchunks.chunk.CubePlayerProvider;
 import io.github.opencubicchunks.cubicchunks.chunk.IBigCube;
 import io.github.opencubicchunks.cubicchunks.chunk.IChunkManager;
 import io.github.opencubicchunks.cubicchunks.chunk.IChunkMapInternal;
@@ -121,7 +122,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 import org.spongepowered.asm.mixin.injection.callback.LocalCapture;
 
 @Mixin(ChunkMap.class)
-public abstract class MixinChunkManager implements IChunkManager, IChunkMapInternal, IVerticalView {
+public abstract class MixinChunkManager implements IChunkManager, IChunkMapInternal, IVerticalView, CubePlayerProvider {
 
     private static final double TICK_UPDATE_DISTANCE = 128.0;
 
@@ -247,7 +248,8 @@ public abstract class MixinChunkManager implements IChunkManager, IChunkMapInter
         this.processCubeUnloads(hasMoreTime);
     }
 
-    // Forge dimension stuff gone in 1.16, TODO when forge readds dimension code
+    //FORGE:
+    // Forge dimension stuff gone in 1.16, when forge readds dimension code
     // @Redirect(method = "tick", at = @At(value = "INVOKE", target = "Lit/unimi/dsi/fastutil/longs/Long2ObjectLinkedOpenHashMap;isEmpty()Z"))
     // private boolean canUnload(Long2ObjectLinkedOpenHashMap<ChunkHolder> loadedChunks)
     // {
@@ -328,7 +330,7 @@ public abstract class MixinChunkManager implements IChunkManager, IChunkMapInter
                 }
 
                 CompoundTag compoundnbt = CubeSerializer.write(this.level, cube);
-                //TODO: FORGE EVENT : reimplement ChunkDataEvent#Save
+                //FORGE: FORGE EVENT : reimplement ChunkDataEvent#Save
 //                net.minecraftforge.common.MinecraftForge.EVENT_BUS.post(new net.minecraftforge.event.world.ChunkDataEvent.Save(p_219229_1_, p_219229_1_.getWorldForge() != null ?
 //                p_219229_1_.getWorldForge() : this.level, compoundnbt));
                 regionCubeIO.saveCubeNBT(cubePos, compoundnbt);
@@ -378,7 +380,7 @@ public abstract class MixinChunkManager implements IChunkManager, IChunkMapInter
                 if (this.pendingCubeUnloads.remove(cubePos, chunkHolderIn) && icube != null) {
                     if (icube instanceof BigCube) {
                         ((BigCube) icube).setLoaded(false);
-                        //TODO: reimplement forge event ChunkEvent#Unload.
+                        //FORGE: Reimplement forge event ChunkEvent#Unload.
                         //net.minecraftforge.common.MinecraftForge.EVENT_BUS.post(new net.minecraftforge.event.world.ChunkEvent.Unload((Chunk)cube));
                     }
 
@@ -848,7 +850,7 @@ public abstract class MixinChunkManager implements IChunkManager, IChunkMapInter
     }
 
 
-    // getPlayers
+    @Override
     public Stream<ServerPlayer> getPlayers(CubePos pos, boolean boundaryOnly) {
         int hViewDistanceCubes = Coords.sectionToCubeRenderDistance(this.viewDistance);
         int vViewDistanceCubes = Coords.sectionToCubeRenderDistance(this.verticalViewDistance);
@@ -1123,7 +1125,7 @@ public abstract class MixinChunkManager implements IChunkManager, IChunkMapInter
 
     protected void updateCubeTracking(ServerPlayer player, CubePos cubePosIn, Object[] packetCache, boolean wasLoaded, boolean load) {
         if (player.level == this.level) {
-            //TODO: reimplement forge event
+            //FORGE: Reimplement forge event
             //net.minecraftforge.event.ForgeEventFactory.fireChunkWatch(wasLoaded, load, player, cubePosIn, this.world);
             if (load && !wasLoaded) {
                 ChunkHolder chunkholder = ((IChunkManager) this).getImmutableCubeHolder(cubePosIn.asLong());

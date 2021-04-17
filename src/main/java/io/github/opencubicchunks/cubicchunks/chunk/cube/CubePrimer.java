@@ -1,3 +1,5 @@
+
+
 package io.github.opencubicchunks.cubicchunks.chunk.cube;
 
 import static net.minecraft.world.level.chunk.LevelChunk.EMPTY_SECTION;
@@ -62,6 +64,7 @@ import net.minecraft.world.level.lighting.LevelLightEngine;
 import net.minecraft.world.level.material.Fluid;
 import net.minecraft.world.level.material.FluidState;
 import net.minecraft.world.level.material.Fluids;
+import org.apache.logging.log4j.LogManager;
 
 //ProtoChunk
 public class CubePrimer extends ProtoChunk implements IBigCube, CubicLevelHeightAccessor {
@@ -76,6 +79,7 @@ public class CubePrimer extends ProtoChunk implements IBigCube, CubicLevelHeight
 
     @Nullable
     private CubeBiomeContainer cubeBiomeContainer;
+
 
     private final Map<Heightmap.Types, SurfaceTrackerSection[]> heightmaps;
 
@@ -125,8 +129,7 @@ public class CubePrimer extends ProtoChunk implements IBigCube, CubicLevelHeight
         this.carvingMasks = new Object2ObjectArrayMap<>();
 
         this.structureStarts = Maps.newHashMap();
-      
-        this.structuresRefences = new ConcurrentHashMap<>(); // Maps.newHashMap(); //TODO: This should NOT be a ConcurrentHashMap
+        this.structuresRefences = Maps.newHashMap();
 
         this.cubePos = cubePosIn;
         this.levelHeightAccessor = levelHeightAccessor;
@@ -140,7 +143,6 @@ public class CubePrimer extends ProtoChunk implements IBigCube, CubicLevelHeight
                 throw new IllegalStateException("Number of Sections must equal IBigCube.CUBESIZE | " + IBigCube.SECTION_COUNT);
             }
         }
-
         isCubic = ((CubicLevelHeightAccessor) levelHeightAccessor).isCubic();
         generates2DChunks = ((CubicLevelHeightAccessor) levelHeightAccessor).generates2DChunks();
         worldStyle = ((CubicLevelHeightAccessor) levelHeightAccessor).worldStyle();
@@ -171,14 +173,6 @@ public class CubePrimer extends ProtoChunk implements IBigCube, CubicLevelHeight
     @Override public LevelChunkSection[] getCubeSections() {
         return this.sections;
     }
-
-    private ChunkSource getChunkSource() {
-		if (this.levelHeightAccessor instanceof CubeWorldGenRegion) {
-			return ((CubeWorldGenRegion) this.levelHeightAccessor).getChunkSource();
-		} else {
-			return ((ServerLevel) this.levelHeightAccessor).getChunkSource();
-		}
-	}
 
     //STATUS
     public void setCubeStatus(ChunkStatus newStatus) {
@@ -230,9 +224,9 @@ public class CubePrimer extends ProtoChunk implements IBigCube, CubicLevelHeight
         if (state.getLightEmission() > 0) {
             SectionPos sectionPosAtIndex = Coords.sectionPosByIndex(this.cubePos, index);
             this.lightPositions.add(new BlockPos(
-                    x + Coords.sectionToMinBlock(sectionPosAtIndex.getX()),
-                    y + Coords.sectionToMinBlock(sectionPosAtIndex.getY()),
-                    z + Coords.sectionToMinBlock(sectionPosAtIndex.getZ()))
+                x + Coords.sectionToMinBlock(sectionPosAtIndex.getX()),
+                y + Coords.sectionToMinBlock(sectionPosAtIndex.getY()),
+                z + Coords.sectionToMinBlock(sectionPosAtIndex.getZ()))
             );
         }
 

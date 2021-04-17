@@ -72,6 +72,7 @@ public class CubicChunks implements ModInitializer {
         if (System.getProperty("cubicchunks.debug", "false").equalsIgnoreCase("true")) {
             try {
                 Class.forName("io.github.opencubicchunks.cubicchunks.debug.DebugVisualization").getMethod("enable").invoke(null);
+                SharedConstants.IS_RUNNING_IN_IDE = true;
             } catch (IllegalAccessException | InvocationTargetException | NoSuchMethodException | ClassNotFoundException e) {
                 LOGGER.catching(e);
             }
