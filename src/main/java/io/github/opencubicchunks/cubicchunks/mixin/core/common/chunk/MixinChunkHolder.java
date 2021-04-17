@@ -15,6 +15,7 @@ import java.util.function.Consumer;
 import javax.annotation.Nullable;
 
 import com.mojang.datafixers.util.Either;
+import io.github.opencubicchunks.cubicchunks.chunk.CubePlayerProvider;
 import io.github.opencubicchunks.cubicchunks.chunk.IBigCube;
 import io.github.opencubicchunks.cubicchunks.chunk.IChunkManager;
 import io.github.opencubicchunks.cubicchunks.chunk.ICubeHolder;
@@ -351,6 +352,9 @@ public abstract class MixinChunkHolder implements ICubeHolder {
 
         ci.cancel();
 
+        int localX = blockPos.getX() & 0xF;
+        int localZ = blockPos.getZ() & 0xF;
+
         if (cubePos == null) {
             ChunkAccess chunk = getTickingChunk();
             if (chunk == null) {
@@ -360,11 +364,13 @@ public abstract class MixinChunkHolder implements ICubeHolder {
                 if (!value.sendToClient()) {
                     continue;
                 }
-                int topY = chunk.getHeight(value, blockPos.getX(), blockPos.getZ()) - 1;
+                int topY = ((LightHeightmapGetter) chunk).getLightHeightmap().getFirstAvailable(localX, localZ) - 1;
+                int topLightY = ((LightHeightmapGetter) chunk).getLightHeightmap().getFirstAvailable(localX, localZ) - 1;
+
                 // if the block being changed is new top block - heightmap probably was updated
                 // if block being changed is above new top block - heightmap was probably decreased
                 // TODO: replace heuristics with proper tracking
-                if (blockPos.getY() >= topY) {
+                if (blockPos.getY() >= topY || blockPos.getY() >= topLightY) {
                     // TODO: don't use heightmap type as "height" for address
 
                     if (this.changedLocalBlocks[sectionIDX] == null) {
@@ -372,13 +378,6 @@ public abstract class MixinChunkHolder implements ICubeHolder {
                     }
                     changedLocalBlocks[sectionIDX].add(SectionPos.sectionRelativePos(blockPos));
                 }
-            }
-            int topY = ((LightHeightmapGetter) chunk).getLightHeightmap().getFirstAvailable(localX, localZ) - 1;
-            // Same logic as above for heightmap updates
-            // TODO: replace heuristics with proper tracking
-            if (blockPos.getY() >= topY) {
-                // TODO: don't use heightmap type as "height" for address
-                changedLocalBlocks.add((short) AddressTools.getLocalAddress(localX, 0xF, localZ));
             }
             return;
         }
