@@ -1,5 +1,10 @@
 package io.github.opencubicchunks.cubicchunks.mixin.core.common.chunk;
 
+import io.github.opencubicchunks.cubicchunks.chunk.LightHeightmapGetter;
+import io.github.opencubicchunks.cubicchunks.chunk.heightmap.ClientLightSurfaceTracker;
+import io.github.opencubicchunks.cubicchunks.chunk.heightmap.LightSurfaceTrackerWrapper;
+import net.minecraft.world.level.LevelHeightAccessor;
+import net.minecraft.world.level.chunk.ChunkAccess;
 import io.github.opencubicchunks.cubicchunks.chunk.IBigCube;
 import io.github.opencubicchunks.cubicchunks.chunk.cube.CubePrimer;
 import io.github.opencubicchunks.cubicchunks.server.CubicLevelHeightAccessor;
@@ -11,6 +16,7 @@ import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.chunk.ChunkStatus;
 import net.minecraft.world.level.chunk.LevelChunkSection;
 import net.minecraft.world.level.chunk.ProtoChunk;
+import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.level.chunk.ProtoTickList;
 import net.minecraft.world.level.chunk.UpgradeData;
 import net.minecraft.world.level.material.Fluid;
@@ -24,7 +30,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 @Mixin(ProtoChunk.class)
-public abstract class MixinProtoChunk implements LevelHeightAccessor, CubicLevelHeightAccessor {
+public abstract class MixinProtoChunk implements LightHeightmapGetter, LevelHeightAccessor, CubicLevelHeightAccessor {
     @Shadow @Final private LevelHeightAccessor levelHeightAccessor;
 
     private boolean isCubic;
@@ -32,6 +38,21 @@ public abstract class MixinProtoChunk implements LevelHeightAccessor, CubicLevel
     private WorldStyle worldStyle;
 
     @Shadow public abstract ChunkStatus getStatus();
+
+    private LightSurfaceTrackerWrapper lightHeightmap;
+
+    @Override
+    public Heightmap getLightHeightmap() {
+        if (!isCubic) {
+            throw new UnsupportedOperationException("Attempted to get light heightmap on a non-cubic chunk");
+        }
+        // FIXME remove debug
+        if (lightHeightmap == null) {
+            System.out.println("late creation of light heightmap in MixinProtoChunk");
+            lightHeightmap = new LightSurfaceTrackerWrapper((ChunkAccess) this);
+        }
+        return lightHeightmap;
+    }
 
     @Inject(method = "<init>(Lnet/minecraft/world/level/ChunkPos;Lnet/minecraft/world/level/chunk/UpgradeData;[Lnet/minecraft/world/level/chunk/LevelChunkSection;"
         + "Lnet/minecraft/world/level/chunk/ProtoTickList;Lnet/minecraft/world/level/chunk/ProtoTickList;Lnet/minecraft/world/level/LevelHeightAccessor;)V", at = @At("RETURN"))
@@ -102,5 +123,19 @@ public abstract class MixinProtoChunk implements LevelHeightAccessor, CubicLevel
 
     @Override public boolean generates2DChunks() {
         return generates2DChunks;
+    }
+
+    @Inject(
+        method = "setStatus(Lnet/minecraft/world/level/chunk/ChunkStatus;)V",
+        at = @At("RETURN")
+    )
+    private void onSetStatus(ChunkStatus status, CallbackInfo ci) {
+        if (!this.isCubic()) {
+            return;
+        }
+        if (lightHeightmap == null && this.getStatus().isOrAfter(ChunkStatus.FEATURES)) {
+            // Lighting only starts happening after FEATURES, so we init here to avoid creating unnecessary heightmaps
+            lightHeightmap = new LightSurfaceTrackerWrapper((ChunkAccess) this);
+        }
     }
 }

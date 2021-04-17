@@ -30,7 +30,8 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 @Mixin(LayerLightEngine.class)
-public abstract class MixinLightEngine<M extends DataLayerStorageMap<M>, S extends LayerLightSectionStorage<M>> implements ILightEngine {
+public abstract class MixinLightEngine<M extends DataLayerStorageMap<M>, S extends LayerLightSectionStorage<M>> extends MixinDynamicGraphMinFixedPoint implements ILightEngine {
+
     @Shadow @Final protected S storage;
 
     @Shadow @Final protected BlockPos.MutableBlockPos pos;
@@ -41,10 +42,11 @@ public abstract class MixinLightEngine<M extends DataLayerStorageMap<M>, S exten
 
     @Shadow @Final private BlockGetter[] lastChunk;
 
-    private boolean isCubic;
+    protected boolean isCubic;
     private boolean generates2DChunks;
     private CubicLevelHeightAccessor.WorldStyle worldStyle;
 
+	@Shadow protected void checkNode(long id) {}
     @Shadow @Nullable protected abstract BlockGetter getChunk(int chunkX, int chunkZ);
 
     @Override
