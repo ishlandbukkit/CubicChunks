@@ -135,6 +135,7 @@ public abstract class MixinChunk implements ChunkAccess, CubicLevelHeightAccesso
             return;
         }
         lightHeightmap = ((LightHeightmapGetter) protoChunk).getLightHeightmap();
+        cubeMap = ((CubeMapGetter) protoChunk).getCubeMap();
     }
 
     @Inject(
@@ -158,7 +159,7 @@ public abstract class MixinChunk implements ChunkAccess, CubicLevelHeightAccesso
             lightHeightmap.update(relX, pos.getY(), relZ, state);
             int newHeight = lightHeightmap.getFirstAvailable(relX, relZ);
             if (newHeight != oldHeight) {
-                ((ISkyLightColumnChecker) this.level.getChunkSource().getLightEngine()).checkSkyLightColumn((LevelChunk) (Object) this, pos.getX(), pos.getZ(), oldHeight, newHeight);
+                ((ISkyLightColumnChecker) this.level.getChunkSource().getLightEngine()).checkSkyLightColumn(this, pos.getX(), pos.getZ(), oldHeight, newHeight);
             }
         }
     }
