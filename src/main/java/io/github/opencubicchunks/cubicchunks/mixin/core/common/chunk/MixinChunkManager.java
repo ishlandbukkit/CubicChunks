@@ -282,7 +282,7 @@ public abstract class MixinChunkManager implements IChunkManager, IChunkMapInter
 
             do {
                 savedAny.setFalse();
-                list.stream().map((cubeHolder) -> {
+                @SuppressWarnings("unchecked") final CompletableFuture<Boolean>[] saveFutures = list.stream().map((cubeHolder) -> {
                     CompletableFuture<IBigCube> cubeFuture;
                     do {
                         cubeFuture = ((ICubeHolder) cubeHolder).getCubeToSave();
@@ -291,7 +291,13 @@ public abstract class MixinChunkManager implements IChunkManager, IChunkMapInter
 
                     return cubeFuture.join();
                 }).filter((cube) -> cube instanceof CubePrimerWrapper || cube instanceof BigCube)
-                    .filter(this::cubeSave).forEach((unsavedCube) -> savedAny.setTrue());
+                    .map(this::cubeSaveAsync).distinct().toArray(CompletableFuture[]::new);
+                for (CompletableFuture<Boolean> future : saveFutures) {
+                    if (future.join()) {
+                        savedAny.setTrue();
+                    }
+                }
+
             } while (savedAny.isTrue());
 
             this.processCubeUnloads(() -> true);

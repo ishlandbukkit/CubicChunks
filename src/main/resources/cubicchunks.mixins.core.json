@@ -11,6 +11,7 @@
         "conformVisibility": true
     },
     "mixins": [
+        "common.chunk.cave.legacy.MixinWorldCarver",
         "common.MixinBlockPos",
         "common.MixinMinecraftServer",
         "common.MixinServerChunkProvider",
@@ -30,7 +31,6 @@
         "common.chunk.MixinNoiseSampler",
         "common.chunk.MixinProtoChunk",
         "common.chunk.MixinProtoTickList",
-        "common.chunk.cave.MixinAquifer",
         "common.chunk.cave.legacy.MixinWorldCarver",
         "common.chunk.storage.MixinEntityStorage",
         "common.chunk.storage.MixinPoiManager",

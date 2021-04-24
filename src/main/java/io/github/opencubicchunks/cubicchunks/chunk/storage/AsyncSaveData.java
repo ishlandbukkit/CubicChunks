@@ -9,10 +9,13 @@ import java.util.stream.Collectors;
 
 import io.github.opencubicchunks.cubicchunks.chunk.IBigCube;
 import io.github.opencubicchunks.cubicchunks.chunk.ImposterChunkPos;
+import io.github.opencubicchunks.cubicchunks.chunk.cube.BigCube;
+import io.github.opencubicchunks.cubicchunks.chunk.cube.CubePrimer;
 import io.github.opencubicchunks.cubicchunks.utils.Coords;
 import io.github.opencubicchunks.cubicchunks.world.storage.CubeProtoTickList;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.SectionPos;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.ChunkTickList;
@@ -31,6 +34,7 @@ public class AsyncSaveData {
     public final Optional<Tag> serverBlockTicks;
     public final Optional<Tag> serverLiquidTicks;
     public final Map<BlockPos, BlockEntity> blockEntities;
+    public final Map<BlockPos, CompoundTag> blockEntitiesDeferred;
 
     public AsyncSaveData(ServerLevel level, IBigCube cube) {
         this.blockLight = new HashMap<>(IBigCube.SECTION_COUNT, 1f);
@@ -39,8 +43,10 @@ public class AsyncSaveData {
             final SectionPos sectionPos = Coords.sectionPosByIndex(cube.getCubePos(), i);
             DataLayer blockData = level.getChunkSource().getLightEngine().getLayerListener(LightLayer.BLOCK).getDataLayerData(sectionPos);
             DataLayer skyData = level.getChunkSource().getLightEngine().getLayerListener(LightLayer.SKY).getDataLayerData(sectionPos);
+            if (blockData != null) blockData = blockData.copy();
+            if (skyData != null) skyData = skyData.copy();
             this.blockLight.put(sectionPos, blockData);
-            this.skyLight.put(sectionPos, blockData);
+            this.skyLight.put(sectionPos, skyData);
         }
         final TickList<Block> blockTicks = cube.getBlockTicks();
         if (!(blockTicks instanceof CubeProtoTickList) && !(blockTicks instanceof ChunkTickList)) {
@@ -58,6 +64,13 @@ public class AsyncSaveData {
             .map(cube::getBlockEntity)
             .filter(Objects::nonNull)
             .collect(Collectors.toMap(BlockEntity::getBlockPos, Function.identity()));
+        if (cube instanceof BigCube) {
+            this.blockEntitiesDeferred = new HashMap<>(((BigCube) cube).getDeferredTileEntityMap());
+        } else if (cube instanceof CubePrimer) {
+            this.blockEntitiesDeferred = new HashMap<>(((CubePrimer) cube).getDeferredTileEntities());
+        } else {
+            this.blockEntitiesDeferred = new HashMap<>();
+        }
     }
 
 }
