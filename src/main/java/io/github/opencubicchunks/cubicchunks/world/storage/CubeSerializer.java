@@ -2,6 +2,7 @@ package io.github.opencubicchunks.cubicchunks.world.storage;
 
 import java.util.Arrays;
 import java.util.BitSet;
+import java.util.LinkedList;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -16,7 +17,9 @@ import io.github.opencubicchunks.cubicchunks.chunk.biome.CubeBiomeContainer;
 import io.github.opencubicchunks.cubicchunks.chunk.cube.BigCube;
 import io.github.opencubicchunks.cubicchunks.chunk.cube.CubePrimer;
 import io.github.opencubicchunks.cubicchunks.chunk.cube.CubePrimerWrapper;
+import io.github.opencubicchunks.cubicchunks.chunk.storage.AsyncSaveData;
 import io.github.opencubicchunks.cubicchunks.chunk.storage.POIDeserializationContext;
+import io.github.opencubicchunks.cubicchunks.chunk.util.ChunkIoMainThreadTaskUtils;
 import io.github.opencubicchunks.cubicchunks.chunk.util.CubePos;
 import io.github.opencubicchunks.cubicchunks.mixin.access.common.ChunkSerializerAccess;
 import io.github.opencubicchunks.cubicchunks.server.CubicLevelHeightAccessor;
@@ -100,7 +103,7 @@ public class CubeSerializer {
                     sections[cubeIndex] = chunksection;
                 }
 
-                ((POIDeserializationContext) poiManager).checkConsistencyWithBlocksForCube(sectionPos, chunksection);
+                ChunkIoMainThreadTaskUtils.executeMain(() -> ((POIDeserializationContext) poiManager).checkConsistencyWithBlocksForCube(sectionPos, chunksection));
             }
 
             if (isLightOn) {
@@ -233,7 +236,7 @@ public class CubeSerializer {
         }
     }
 
-    public static CompoundTag write(ServerLevel world, IBigCube icube) {
+    public static CompoundTag write(ServerLevel world, IBigCube icube, AsyncSaveData data) {
         CubePos pos = icube.getCubePos();
 
         CompoundTag root = new CompoundTag();
